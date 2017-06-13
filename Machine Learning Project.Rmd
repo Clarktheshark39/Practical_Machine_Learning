@@ -1,0 +1,123 @@
+---
+title: "Machine Learning Project"
+author: "Clark Porter"
+date: "6/12/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+
+## Project Introduction
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:
+
+[Quantified Self Movement](http://groupware.les.inf.puc-rio.br/har) 
+(see the section on the Weight Lifting Exercise Dataset).
+
+### Data
+
+The training data for this project are available here:
+
+[Training Data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+
+[Testing Data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+The data for this project come from this source: 
+
+[Data Source](http://groupware.les.inf.puc-rio.br/har) 
+
+### Goal
+
+The goal of this project is to predict the manner in which participants did the exercise. This is the "classe" variable in the training set. Any of the other variables may be used to predict with. The below report describes how my prediction model was built, how I used cross validation, what I think the expected out of sample error is, and why I made the choices I did. The prediction model will be used to predict 20 different test cases.
+
+## Loading Data
+
+```{r Data Load, cache=TRUE}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(trainUrl), na.strings=c("NA",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA",""))
+```
+
+## Data Cleaning and Splitting
+
+I will clean both data sets (training and test) below in order to prepare them for model fitting and then prediction. First, I will remove the first 7 columns, as they are columns with low predictive power.
+
+```{r Row Remove}
+train_data <- training[, -c(1:7)]
+test_data <- testing[, -c(1:7)]
+```
+
+Now I will take only the columns with no missing data points.
+
+```{r Missing Data}
+mostlyNA <- sapply(train_data, function(x) mean(is.na(x))) > 0.95
+train_data <- train_data[, mostlyNA==F]
+test_data <- test_data[, mostlyNA==F]
+```
+
+Now I will split the training data for model training.
+
+```{r Data Split, cache=TRUE}
+set.seed(777)
+inTrain <- createDataPartition(train_data$classe, p = 0.7, list = FALSE)
+train <- train_data[inTrain, ]
+valid <- train_data[-inTrain, ]
+dim(train); dim(valid)
+```
+
+## Prediction Algorithms 
+
+### Random Forest
+
+Below I will now use a Random Forest model and judge its performance. I will use k = 3 for 3 fold cross validation as well. 
+
+```{r RF, cache=TRUE}
+# 3-fold CV
+fitControl <- trainControl(method="cv", number=3, verboseIter=F)
+# fit model on train
+fit <- train(classe ~ ., data= train , method="rf", trControl=fitControl)
+# print final model
+fit$finalModel
+```
+
+We can see that the model is highly accurate with an error rate of less than 1%, using 500 different trees with 27 variables at each split. The model may be overfit, but we will test the model on the remaining partition of the training data below. 
+
+### Training Data Prediction
+
+Now I will use the above algorithm to predict based on the "valid" partition of the training data.
+
+```{r Predict, cache=TRUE}
+# use model to predict classe in validation set
+preds <- predict(fit, newdata=valid)
+# show confusion matrix to get estimate of out-of-sample error
+confusionMatrix(valid$classe, preds)
+```
+
+Now that I can see the model is not overly fit on the training data, and that the out of sample error is reasonable, I will retrain the model on the full training data set before predicting using the test data.
+
+```{r Retrain, cache=TRUE}
+# fit model on all training data
+final_fit <- train(classe ~ ., data= train_data , method="rf", trControl=fitControl)
+```
+
+### Test Data Prediction
+
+Below I will predict the class of the test data using the Random Forest model, final_fit.
+
+```{r final predict, cache=TRUE}
+predict(final_fit, test_data)
+```
+
