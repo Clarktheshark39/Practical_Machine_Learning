@@ -1,2 +1,3 @@
-# Practical_Machine_Learning
-Machine Learning Final Project
+# Practical Machine Learning
+
+My final Machine Learning Final Project for Coursera.
